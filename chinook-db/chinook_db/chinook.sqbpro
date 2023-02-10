@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="F:/python/projects/Udacity projects/chinook-db/chinook_db/chinook.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="125"/><column_width id="3" width="5283"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><current_table name="4,5:mainAlbum"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="SQL 1">WITH t1 AS
+  (SELECT g.Name,
+          sum(il.Quantity)
+   FROM Genre g
+   JOIN Track t ON g.GenreId = t.GenreId
+   JOIN InvoiceLine il ON il.TrackId = t.TrackId
+   GROUP BY 1
+   ORDER BY 2 DESC
+   LIMIT 6)
+SELECT STRFTIME('%Y', i.InvoiceDate) AS date,
+       g.Name AS genre,
+       SUM(il.Quantity) AS sales
+FROM Invoice i
+JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
+JOIN Track t ON il.TrackId = t.TrackId
+JOIN Genre g ON t.GenreId = g.GenreId
+AND g.Name in
+  (SELECT Name
+   FROM t1)
+GROUP BY 1,
+         2;
+
+
+WITH t1 as (SELECT genre,
+       artist,
+       max(sales) AS sales
+FROM
+  (SELECT g.Name AS genre,
+          ar.Name AS artist,
+          SUM(il.Quantity) AS sales
+   FROM Genre g
+   JOIN Track t ON g.GenreId = t.GenreId
+   JOIN InvoiceLine il ON il.TrackId = t.TrackId
+   JOIN Album al ON al.AlbumId = t.AlbumId
+   JOIN Artist ar ON ar.ArtistId = al.ArtistId
+   GROUP BY 1,
+            2)
+GROUP BY 1
+ORDER BY 3 DESC
+LIMIT 5)
+SELECT  STRFTIME('%Y', i.InvoiceDate) AS date, ar.Name as artist, SUM(il.Quantity) as sales
+From Artist ar
+join t1
+on t1.artist = ar.Name
+join Album al
+on al.ArtistId = ar.ArtistId
+join Track t 
+on t.AlbumId = al.AlbumId
+join InvoiceLine il
+on t.TrackId = il.TrackId
+join Invoice i 
+on il.InvoiceId = i.InvoiceId
+group by 1,2;
+
+
+with t1 as (SElect i.BillingCountry as country, Sum(il.Quantity) as sales
+from Invoice i 
+join InvoiceLine il
+on i.InvoiceId = il.InvoiceId
+group by 1
+order by 2 DESC
+limit 5),
+t2 as (
+Select country, genre, sales
+from ( SElect i.BillingCountry as country, g.Name as genre, Sum(il.Quantity) as sales, row_number() over (partition by i.BillingCountry order by sales desc) as rank
+from Invoice i 
+join t1
+on t1.country = i.BillingCountry
+join InvoiceLine il
+on i.InvoiceId = il.InvoiceId
+join Track t 
+on il.TrackId = t.TrackId
+join Genre g 
+on t.GenreId = g.GenreId
+group by 1,2) as ft
+where ft.rank &lt;= 4)
+select country, genre, artist, sales from(
+SElect i.BillingCountry as country, g.Name as genre, ar.Name as artist , Sum(il.Quantity) as sales, row_number() over (partition by i.BillingCountry,g.Name order by Sum(il.Quantity) desc) as rank
+from Invoice i 
+join t1
+on t1.country = i.BillingCountry
+join InvoiceLine il
+on i.InvoiceId = il.InvoiceId
+join Track t 
+on il.TrackId = t.TrackId
+join Genre g 
+on t.GenreId = g.GenreId
+join t2
+on t2.genre = g.Name
+join Album al
+on t.AlbumId = al.AlbumId
+join Artist ar
+on ar.ArtistId = al.ArtistId
+group by 1,2,3) t3
+where t3.rank &lt;= 3;
+
+select i.BillingCountry as country, g.Name as genre, ar.Name as artist , Sum(il.Quantity) as sales
+from Invoice i 
+join InvoiceLine il
+on i.InvoiceId = il.InvoiceId
+join Track t 
+on il.TrackId = t.TrackId
+join Genre g 
+on t.GenreId = g.GenreId
+join Album al
+on t.AlbumId = al.AlbumId
+join Artist ar
+on ar.ArtistId = al.ArtistId
+group by 1,2,3
+
+
+		 
+</sql><current_tab id="0"/></tab_sql></sqlb_project>

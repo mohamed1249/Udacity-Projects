@@ -1,0 +1,131 @@
+1st Query ->
+
+WITH t1 AS
+  (SELECT g.Name,
+          sum(il.Quantity)
+   FROM Genre g
+   JOIN Track t ON g.GenreId = t.GenreId
+   JOIN InvoiceLine il ON il.TrackId = t.TrackId
+   GROUP BY 1
+   ORDER BY 2 DESC
+   LIMIT 6)
+SELECT STRFTIME('%Y', i.InvoiceDate) AS date,
+       g.Name AS genre,
+       SUM(il.Quantity) AS sales
+FROM Invoice i
+JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
+JOIN Track t ON il.TrackId = t.TrackId
+JOIN Genre g ON t.GenreId = g.GenreId
+AND g.Name in
+  (SELECT Name
+   FROM t1)
+GROUP BY 1,
+         2;
+
+
+2nd Query ->
+
+SELECT genre,
+       artist,
+       max(sales) AS sales
+FROM
+  (SELECT g.Name AS genre,
+          ar.Name AS artist,
+          SUM(il.Quantity) AS sales
+   FROM Genre g
+   JOIN Track t ON g.GenreId = t.GenreId
+   JOIN InvoiceLine il ON il.TrackId = t.TrackId
+   JOIN Album al ON al.AlbumId = t.AlbumId
+   JOIN Artist ar ON ar.ArtistId = al.ArtistId
+   GROUP BY 1,
+            2) AS t1
+GROUP BY 1
+ORDER BY 3 DESC;
+
+
+3rd Query ->
+
+WITH t1 AS
+  (SELECT genre,
+          artist,
+          max(sales) AS sales
+   FROM
+     (SELECT g.Name AS genre,
+             ar.Name AS artist,
+             SUM(il.Quantity) AS sales
+      FROM Genre g
+      JOIN Track t ON g.GenreId = t.GenreId
+      JOIN InvoiceLine il ON il.TrackId = t.TrackId
+      JOIN Album al ON al.AlbumId = t.AlbumId
+      JOIN Artist ar ON ar.ArtistId = al.ArtistId
+      GROUP BY 1,
+               2)
+   GROUP BY 1
+   ORDER BY 3 DESC
+   LIMIT 5)
+SELECT STRFTIME('%Y', i.InvoiceDate) AS date,
+       ar.Name AS artist,
+       SUM(il.Quantity) AS sales
+FROM Artist ar
+JOIN t1 ON t1.artist = ar.Name
+JOIN Album al ON al.ArtistId = ar.ArtistId
+JOIN Track t ON t.AlbumId = al.AlbumId
+JOIN InvoiceLine il ON t.TrackId = il.TrackId
+JOIN Invoice i ON il.InvoiceId = i.InvoiceId
+GROUP BY 1,
+         2;
+
+
+4th Query ->
+
+
+WITH t1 AS
+  (SELECT i.BillingCountry AS country,
+          Sum(il.Quantity) AS sales
+   FROM Invoice i
+   JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
+   GROUP BY 1
+   ORDER BY 2 DESC
+   LIMIT 5),
+     t2 AS
+  (SELECT country,
+          genre,
+          sales
+   FROM
+     (SELECT i.BillingCountry AS country,
+             g.Name AS genre,
+             Sum(il.Quantity) AS sales,
+             row_number() OVER (PARTITION BY i.BillingCountry
+                                ORDER BY sales DESC) AS rank
+      FROM Invoice i
+      JOIN t1 ON t1.country = i.BillingCountry
+      JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
+      JOIN Track t ON il.TrackId = t.TrackId
+      JOIN Genre g ON t.GenreId = g.GenreId
+      GROUP BY 1,
+               2) AS ft
+   WHERE ft.rank <= 4)
+SELECT country,
+       genre,
+       artist,
+       sales
+FROM
+  (SELECT i.BillingCountry AS country,
+          g.Name AS genre,
+          ar.Name AS artist,
+          Sum(il.Quantity) AS sales,
+          row_number() OVER (PARTITION BY i.BillingCountry,
+                                          g.Name
+                             ORDER BY Sum(il.Quantity) DESC) AS rank
+   FROM Invoice i
+   JOIN t1 ON t1.country = i.BillingCountry
+   JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId
+   JOIN Track t ON il.TrackId = t.TrackId
+   JOIN Genre g ON t.GenreId = g.GenreId
+   JOIN t2 ON t2.genre = g.Name
+   JOIN Album al ON t.AlbumId = al.AlbumId
+   JOIN Artist ar ON ar.ArtistId = al.ArtistId
+   GROUP BY 1,
+            2,
+            3) t3
+WHERE t3.rank <= 3;
